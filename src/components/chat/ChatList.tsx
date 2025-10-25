@@ -79,18 +79,22 @@ export default function ChatList({
           >
             <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarFallback className="bg-gradient-to-br from-purple-400 to-blue-400">
-                  {chat.is_group ? (
-                    <Icon name="Users" size={20} />
-                  ) : (
-                    chat.name?.[0].toUpperCase()
-                  )}
-                </AvatarFallback>
+                {chat.avatar_url ? (
+                  <img src={chat.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <AvatarFallback className="bg-gradient-to-br from-purple-400 to-blue-400">
+                    {chat.is_group ? (
+                      <Icon name="Users" size={20} />
+                    ) : (
+                      (chat.name && chat.name.length > 0) ? chat.name[0].toUpperCase() : '?'
+                    )}
+                  </AvatarFallback>
+                )}
               </Avatar>
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-semibold truncate">{chat.name}</h3>
+                  <h3 className="font-semibold truncate">{chat.name || 'Безымянный чат'}</h3>
                   {chat.last_message_time && (
                     <span className="text-xs text-muted-foreground">
                       {new Date(chat.last_message_time).toLocaleTimeString('ru', {

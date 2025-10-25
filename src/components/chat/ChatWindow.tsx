@@ -55,6 +55,9 @@ export default function ChatWindow({
   onShowGroupSettings
 }: ChatWindowProps) {
   const [newMessage, setNewMessage] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const { toast } = useToast();
 
   const sendMessage = async () => {
@@ -124,21 +127,99 @@ export default function ChatWindow({
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        await sendVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      toast({ title: 'Ошибка доступа к микрофону', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendVoiceMessage = async (audioBlob: Blob) => {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'voice.webm');
+
+    try {
+      const response = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+          'X-User-Id': user.id.toString()
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetch(CHATS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': user.id.toString()
+          },
+          body: JSON.stringify({
+            action: 'send_message',
+            chat_id: chat.id,
+            content: 'Голосовое сообщение',
+            file_url: data.url
+          })
+        });
+
+        onMessagesUpdate();
+        toast({ title: 'Голосовое сообщение отправлено!' });
+      } else {
+        toast({ title: 'Ошибка загрузки', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка отправки голосового', variant: 'destructive' });
+    }
+  };
+
   return (
     <>
       <div className="p-4 border-b border-purple-500/20 flex items-center justify-between glass">
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarFallback className="bg-gradient-to-br from-purple-400 to-blue-400">
-              {chat.is_group ? (
-                <Icon name="Users" size={20} />
-              ) : (
-                chat.name?.[0].toUpperCase()
-              )}
-            </AvatarFallback>
+            {chat.avatar_url ? (
+              <img src={chat.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <AvatarFallback className="bg-gradient-to-br from-purple-400 to-blue-400">
+                {chat.is_group ? (
+                  <Icon name="Users" size={20} />
+                ) : (
+                  (chat.name && chat.name.length > 0) ? chat.name[0].toUpperCase() : '?'
+                )}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div>
-            <h2 className="font-semibold">{chat.name}</h2>
+            <h2 className="font-semibold">{chat.name || 'Безымянный чат'}</h2>
             {chat.is_group && (
               <button
                 onClick={onShowMembers}
@@ -177,15 +258,22 @@ export default function ChatWindow({
                   </p>
                 )}
                 {msg.file_url ? (
-                  <a
-                    href={msg.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:underline"
-                  >
-                    <Icon name="File" size={16} />
-                    {msg.content}
-                  </a>
+                  msg.content === 'Голосовое сообщение' ? (
+                    <div className="flex items-center gap-2">
+                      <Icon name="Mic" size={16} />
+                      <audio controls src={msg.file_url} className="max-w-xs" />
+                    </div>
+                  ) : (
+                    <a
+                      href={msg.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 hover:underline"
+                    >
+                      <Icon name="File" size={16} />
+                      {msg.content}
+                    </a>
+                  )
                 ) : (
                   <p>{msg.content}</p>
                 )}
@@ -218,15 +306,25 @@ export default function ChatWindow({
             </Button>
           </label>
 
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={isRecording ? stopRecording : startRecording}
+            className={isRecording ? 'bg-red-500 hover:bg-red-600' : ''}
+          >
+            <Icon name="Mic" size={20} />
+          </Button>
+
           <Input
             placeholder="Сообщение..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             className="glass border-purple-500/30"
+            disabled={isRecording}
           />
 
-          <Button onClick={sendMessage} className="bg-primary hover:bg-primary/90">
+          <Button onClick={sendMessage} className="bg-primary hover:bg-primary/90" disabled={isRecording}>
             <Icon name="Send" size={20} />
           </Button>
         </div>

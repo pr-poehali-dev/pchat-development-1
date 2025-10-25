@@ -61,14 +61,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         else:
             cur.execute("""
-                SELECT DISTINCT c.id, c.name, c.avatar_url, c.is_group,
+                SELECT DISTINCT c.id, 
+                       CASE 
+                         WHEN c.is_group THEN c.name
+                         ELSE (SELECT u.nickname FROM users u 
+                               JOIN chat_members cm2 ON u.id = cm2.user_id 
+                               WHERE cm2.chat_id = c.id AND u.id != %s LIMIT 1)
+                       END as name,
+                       c.avatar_url, c.is_group, c.creator_id,
                        (SELECT content FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
                        (SELECT created_at FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_time
                 FROM chats c
                 JOIN chat_members cm ON c.id = cm.chat_id
                 WHERE cm.user_id = %s
                 ORDER BY last_message_time DESC NULLS LAST
-            """, (user_id,))
+            """, (user_id, user_id))
             chats = cur.fetchall()
             conn.close()
             
@@ -233,6 +240,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
                 conn.commit()
             
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
+        
+        elif action == 'update_group_avatar':
+            chat_id = body.get('chat_id')
+            avatar_url = body.get('avatar_url')
+            
+            cur.execute("""
+                UPDATE chats SET avatar_url = %s
+                WHERE id = %s AND creator_id = %s
+            """, (avatar_url, chat_id, user_id))
+            
+            conn.commit()
             conn.close()
             
             return {

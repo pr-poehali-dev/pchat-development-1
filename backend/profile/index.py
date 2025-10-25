@@ -97,6 +97,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'success': True})
             }
         
+        elif action == 'update_avatar':
+            avatar_url = body.get('avatar_url')
+            
+            cur.execute("""
+                UPDATE users SET avatar_url = %s 
+                WHERE id = %s 
+                RETURNING id, username, nickname, avatar_url, hide_online_status
+            """, (avatar_url, user_id))
+            user = cur.fetchone()
+            conn.commit()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(dict(user) if user else {})
+            }
+        
         elif action == 'logout':
             cur.execute("UPDATE users SET is_online = false WHERE id = %s", (user_id,))
             conn.commit()
