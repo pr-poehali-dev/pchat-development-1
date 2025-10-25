@@ -116,6 +116,131 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'chat_id': chat_id})
             }
         
+        elif action == 'create_group':
+            group_name = body.get('name')
+            avatar_url = body.get('avatar_url')
+            member_usernames = body.get('members', [])
+            
+            cur.execute("""
+                INSERT INTO chats (name, avatar_url, is_group, creator_id)
+                VALUES (%s, %s, true, %s) RETURNING id
+            """, (group_name, avatar_url, user_id))
+            chat = cur.fetchone()
+            chat_id = chat['id']
+            
+            cur.execute(
+                "INSERT INTO chat_members (chat_id, user_id) VALUES (%s, %s)",
+                (chat_id, user_id)
+            )
+            
+            for username in member_usernames:
+                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                member = cur.fetchone()
+                if member:
+                    cur.execute(
+                        "INSERT INTO chat_members (chat_id, user_id) VALUES (%s, %s)",
+                        (chat_id, member['id'])
+                    )
+            
+            conn.commit()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'chat_id': chat_id})
+            }
+        
+        elif action == 'leave_group':
+            chat_id = body.get('chat_id')
+            
+            cur.execute("SELECT nickname FROM users WHERE id = %s", (user_id,))
+            user_data = cur.fetchone()
+            nickname = user_data['nickname'] if user_data else 'Пользователь'
+            
+            cur.execute(
+                "INSERT INTO messages (chat_id, sender_id, content) VALUES (%s, %s, %s)",
+                (chat_id, user_id, f"[Системное] {nickname} покинул(а) группу")
+            )
+            
+            cur.execute(
+                "DELETE FROM chat_members WHERE chat_id = %s AND user_id = %s",
+                (chat_id, user_id)
+            )
+            
+            conn.commit()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
+        
+        elif action == 'get_group_members':
+            chat_id = body.get('chat_id')
+            
+            cur.execute("""
+                SELECT u.id, u.username, u.nickname, u.avatar_url,
+                       c.creator_id
+                FROM users u
+                JOIN chat_members cm ON u.id = cm.user_id
+                JOIN chats c ON c.id = cm.chat_id
+                WHERE cm.chat_id = %s
+            """, (chat_id,))
+            members = cur.fetchall()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps([dict(m) for m in members], default=str)
+            }
+        
+        elif action == 'update_group':
+            chat_id = body.get('chat_id')
+            group_name = body.get('name')
+            avatar_url = body.get('avatar_url')
+            
+            cur.execute("""
+                UPDATE chats SET name = %s, avatar_url = %s
+                WHERE id = %s AND creator_id = %s
+            """, (group_name, avatar_url, chat_id, user_id))
+            
+            conn.commit()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
+        
+        elif action == 'remove_member':
+            chat_id = body.get('chat_id')
+            member_id = body.get('member_id')
+            
+            cur.execute(
+                "SELECT creator_id FROM chats WHERE id = %s",
+                (chat_id,)
+            )
+            chat_data = cur.fetchone()
+            
+            if chat_data and str(chat_data['creator_id']) == str(user_id):
+                cur.execute(
+                    "DELETE FROM chat_members WHERE chat_id = %s AND user_id = %s",
+                    (chat_id, member_id)
+                )
+                conn.commit()
+            
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
+        
         elif action == 'send_message':
             chat_id = body.get('chat_id')
             content = body.get('content', '')

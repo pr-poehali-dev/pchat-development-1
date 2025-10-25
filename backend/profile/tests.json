@@ -1,0 +1,33 @@
+{
+  "tests": [
+    {
+      "name": "Get user profile",
+      "method": "GET",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number",
+        "username": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Update profile",
+      "method": "POST",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "body": {
+        "action": "update_profile",
+        "nickname": "New Name"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
