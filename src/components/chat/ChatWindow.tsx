@@ -61,6 +61,7 @@ export default function ChatWindow({
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const previousMessagesCount = useRef(messages.length);
   const { toast } = useToast();
@@ -149,10 +150,21 @@ export default function ChatWindow({
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewFile({ file, url });
+    } else {
+      uploadFile(file);
+    }
+    
+    e.target.value = '';
+  };
+
+  const uploadFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -190,8 +202,20 @@ export default function ChatWindow({
     } catch (error) {
       toast({ title: 'Ошибка загрузки файла', variant: 'destructive' });
     }
-    
-    e.target.value = '';
+  };
+
+  const sendPreviewedImage = async () => {
+    if (!previewFile) return;
+    await uploadFile(previewFile.file);
+    URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+  };
+
+  const cancelPreview = () => {
+    if (previewFile) {
+      URL.revokeObjectURL(previewFile.url);
+      setPreviewFile(null);
+    }
   };
 
   const startRecording = async () => {
@@ -462,12 +486,44 @@ export default function ChatWindow({
         </div>
       </ScrollArea>
 
+      {previewFile && (
+        <div className="p-4 border-t border-purple-500/20 glass space-y-3">
+          <div className="relative inline-block">
+            <img 
+              src={previewFile.url} 
+              alt="Preview" 
+              className="max-h-48 rounded-lg border border-purple-500/30"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 bg-black/50 hover:bg-black/70"
+              onClick={cancelPreview}
+            >
+              <Icon name="X" size={16} />
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={sendPreviewedImage} 
+              className="bg-gradient-to-r from-purple-500 to-blue-500"
+            >
+              <Icon name="Send" size={16} className="mr-2" />
+              Отправить
+            </Button>
+            <Button variant="outline" onClick={cancelPreview}>
+              Отмена
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="p-4 border-t border-purple-500/20 glass">
         <div className="flex gap-2">
           <label className="cursor-pointer">
             <input
               type="file"
-              onChange={handleFileUpload}
+              onChange={handleFileSelect}
               className="hidden"
             />
             <div className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10">
