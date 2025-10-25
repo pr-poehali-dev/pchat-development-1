@@ -62,7 +62,40 @@ export default function ChatWindow({
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+  const previousMessagesCount = useRef(messages.length);
   const { toast } = useToast();
+
+  const playNotificationSound = () => {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZRA0PVqzn77BdGAg+ldf0xHMpBSd+zPLaizsIGGS36+edUQwLTqXh8bllHAU2jdXwznksBSJ0xPDekj0KDWO56+mqWBQKQ5vd8sFuJAUuhM/z1YU1Bx1ru+3mnEoODlOo5O+zYBoGPJHU88h1LAYme8rx34xBCw9csurvqVcUCkOb3fK+bSMFLoTP89SFNQcearmz5pxKDg5Tpubvs2AaBjyR1PPIdSwGJnrK8d+MQQsOXLLq76hXFApDm93xwG4jBS6Ez/PUhTUHHmu5s+abSg4OU6bm77NgGgY8kdTzyHYsBSV7yvHfizwLDlyy6u+pVxQKQ5vd8cBuIwUuhM/z1IU1Bx5qubPmm0oODlOm5u+zYRoGO5HU88h2KwUme8rx34s8Cw5csvLvqVcUCkSa3vHBbiMFLoTP89SENAceabiz5ppKDg5TpuXvsV8aBy6Ez/PThzQJHmq4s+aaSg4OU6bl77FfGgcuhM/z04c0CR5quLPmmkoODlOm5e+yXxoHLoTP89OHNAcfabez5ppKDg5Tpubwsl4aBjuR1PLIdisFJXvK8d6KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bm8LJeGgY7kdTyyHUrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ptKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSV7yvHfijsLDlyy6u+pVxQKRJre8cFuIwUuhM/z1IQ0Bx9pt7Pmmk0ODlKl5e+yYRoGO5HU8sh2KwUle8rx34o8Cw5csvLvqVcTCkSa3vHBbiMFLoTO89WENAYeabm05ptKDRBSpuXvsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ppKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSV7yvHfijsLDlyy6u+pVxQKRJre8cFuIwUuhM/z1IQ0Bx9pt7Pmmk0ODlKl5e+yYRoGO5HU8sh2KwUle8rx34o8Cw5csvLvqVcTCkSa3vHBbiMFLoTO89WENAYeabm05ppKDRBSpuXvsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ppKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez... [truncated]
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  };
+
+  useEffect(() => {
+    if (messages.length > previousMessagesCount.current) {
+      const newMessages = messages.slice(previousMessagesCount.current);
+      const hasNewMessageFromOthers = newMessages.some(msg => msg.sender_id !== user.id);
+      
+      if (hasNewMessageFromOthers) {
+        playNotificationSound();
+        
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Новое сообщение', {
+            body: newMessages[newMessages.length - 1].content,
+            icon: chat.avatar_url,
+            tag: `chat-${chat.id}`
+          });
+        }
+      }
+    }
+    previousMessagesCount.current = messages.length;
+  }, [messages, user.id, chat.id, chat.avatar_url]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     pollingInterval.current = setInterval(() => {
