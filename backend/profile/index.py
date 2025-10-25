@@ -87,11 +87,32 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps(dict(user))
+                    'body': json.dumps(dict(user) if user else {})
                 }
+            
+            conn.close()
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
         
         elif action == 'logout':
             cur.execute("UPDATE users SET is_online = false WHERE id = %s", (user_id,))
+            conn.commit()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'success': True})
+            }
+        
+        elif action == 'delete_account':
+            cur.execute("DELETE FROM messages WHERE sender_id = %s", (user_id,))
+            cur.execute("DELETE FROM chat_members WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM chats WHERE creator_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
             conn.commit()
             conn.close()
             

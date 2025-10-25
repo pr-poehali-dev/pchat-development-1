@@ -305,6 +305,27 @@ export default function Index() {
     setUser(null);
   };
 
+  const deleteAccount = async () => {
+    if (!confirm('Вы уверены? Все ваши данные будут удалены безвозвратно!')) return;
+    
+    try {
+      await fetch(PROFILE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user?.id.toString() || ''
+        },
+        body: JSON.stringify({ action: 'delete_account' })
+      });
+      
+      localStorage.removeItem('pchat_user');
+      setUser(null);
+      toast({ title: 'Аккаунт удалён' });
+    } catch (error) {
+      toast({ title: 'Ошибка удаления', variant: 'destructive' });
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedChat) return;
@@ -763,8 +784,12 @@ export default function Index() {
               Сохранить
             </Button>
             
-            <Button onClick={logout} variant="destructive" className="w-full">
+            <Button onClick={logout} variant="outline" className="w-full">
               Выйти из аккаунта
+            </Button>
+            
+            <Button onClick={deleteAccount} variant="destructive" className="w-full">
+              Удалить аккаунт
             </Button>
           </div>
         </DialogContent>
