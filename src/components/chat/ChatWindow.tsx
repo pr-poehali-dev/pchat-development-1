@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,20 @@ export default function ChatWindow({
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    pollingInterval.current = setInterval(() => {
+      onMessagesUpdate();
+    }, 2000);
+
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current);
+      }
+    };
+  }, [chat.id, onMessagesUpdate]);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
