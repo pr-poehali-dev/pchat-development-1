@@ -66,9 +66,25 @@ export default function ChatWindow({
   const { toast } = useToast();
 
   const playNotificationSound = () => {
-    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZRA0PVqzn77BdGAg+ldf0xHMpBSd+zPLaizsIGGS36+edUQwLTqXh8bllHAU2jdXwznksBSJ0xPDekj0KDWO56+mqWBQKQ5vd8sFuJAUuhM/z1YU1Bx1ru+3mnEoODlOo5O+zYBoGPJHU88h1LAYme8rx34xBCw9csurvqVcUCkOb3fK+bSMFLoTP89SFNQcearmz5pxKDg5Tpubvs2AaBjyR1PPIdSwGJnrK8d+MQQsOXLLq76hXFApDm93xwG4jBS6Ez/PUhTUHHmu5s+abSg4OU6bm77NgGgY8kdTzyHYsBSV7yvHfizwLDlyy6u+pVxQKQ5vd8cBuIwUuhM/z1IU1Bx5qubPmm0oODlOm5u+zYRoGO5HU88h2KwUme8rx34s8Cw5csvLvqVcUCkSa3vHBbiMFLoTP89SENAceabiz5ppKDg5TpuXvsV8aBy6Ez/PThzQJHmq4s+aaSg4OU6bl77FfGgcuhM/z04c0CR5quLPmmkoODlOm5e+yXxoHLoTP89OHNAcfabez5ppKDg5Tpubwsl4aBjuR1PLIdisFJXvK8d6KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bm8LJeGgY7kdTyyHUrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ptKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSV7yvHfijsLDlyy6u+pVxQKRJre8cFuIwUuhM/z1IQ0Bx9pt7Pmmk0ODlKl5e+yYRoGO5HU8sh2KwUle8rx34o8Cw5csvLvqVcTCkSa3vHBbiMFLoTO89WENAYeabm05ptKDRBSpuXvsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ppKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSV7yvHfijsLDlyy6u+pVxQKRJre8cFuIwUuhM/z1IQ0Bx9pt7Pmmk0ODlKl5e+yYRoGO5HU8sh2KwUle8rx34o8Cw5csvLvqVcTCkSa3vHBbiMFLoTO89WENAYeabm05ppKDRBSpuXvsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq76lXFApEmt7xwW4jBS6Ez/PUhDQHH2m3s+aaSg4OU6bl77JgGgY7kdTyyHYrBSZ7yvHfijsKDlyy6u+pVxQKRJre8cJuIwQuhc7z1IQ0Bx9pt7Pmmk0ODlKm5u+zYBoGPJHU88h1LAYme8rx34s8Cw5csvLvqVcTCkSa3vHBbiMFLoTP89SENAceabez5ppKDg5TpubwsmAaBjuR1PLIdisFJXvK8d+KOwsOXLLq7alXFApEmt7xwW4jBS6Ez... [truncated]
-    audio.volume = 0.3;
-    audio.play().catch(() => {});
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (e) {
+      console.log('Audio notification failed');
+    }
   };
 
   useEffect(() => {
@@ -440,10 +456,8 @@ export default function ChatWindow({
               onChange={handleFileUpload}
               className="hidden"
             />
-            <Button variant="ghost" size="icon" className="cursor-pointer" asChild>
-              <span>
-                <Icon name="Paperclip" size={20} />
-              </span>
+            <Button variant="ghost" size="icon" type="button">
+              <Icon name="Paperclip" size={20} />
             </Button>
           </label>
 
@@ -451,21 +465,20 @@ export default function ChatWindow({
             variant="ghost"
             size="icon"
             onClick={isRecording ? stopRecording : startRecording}
-            className={isRecording ? 'bg-red-500 hover:bg-red-600' : ''}
+            className={isRecording ? 'text-red-500' : ''}
           >
-            <Icon name="Mic" size={20} />
+            <Icon name={isRecording ? 'StopCircle' : 'Mic'} size={20} />
           </Button>
 
           <Input
-            placeholder="Сообщение..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            className="glass border-purple-500/30"
-            disabled={isRecording}
+            placeholder="Введите сообщение..."
+            className="flex-1 glass border-purple-500/30"
           />
 
-          <Button onClick={sendMessage} className="bg-primary hover:bg-primary/90" disabled={isRecording}>
+          <Button onClick={sendMessage} className="bg-gradient-to-r from-purple-500 to-blue-500">
             <Icon name="Send" size={20} />
           </Button>
         </div>
