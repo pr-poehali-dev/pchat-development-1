@@ -57,6 +57,7 @@ export default function Index() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showMembersDialog, setShowMembersDialog] = useState(false);
   const [showGroupSettingsDialog, setShowGroupSettingsDialog] = useState(false);
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
 
   const { toast } = useToast();
 
@@ -76,6 +77,7 @@ export default function Index() {
   useEffect(() => {
     if (selectedChat) {
       loadMessages(selectedChat.id);
+      setIsMobileChatOpen(true);
     }
   }, [selectedChat]);
 
@@ -299,26 +301,39 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex">
-      <ChatList
-        user={user}
-        chats={chats}
-        selectedChat={selectedChat}
-        onSelectChat={setSelectedChat}
-        onNewChat={() => setShowNewChatDialog(true)}
-        onNewGroup={() => setShowNewGroupDialog(true)}
-        onSettings={() => setShowSettingsDialog(true)}
-      />
+      <div className={`${isMobileChatOpen && selectedChat ? 'hidden md:block' : 'block'} w-full md:w-auto`}>
+        <ChatList
+          user={user}
+          chats={chats}
+          selectedChat={selectedChat}
+          onSelectChat={setSelectedChat}
+          onNewChat={() => setShowNewChatDialog(true)}
+          onNewGroup={() => setShowNewGroupDialog(true)}
+          onSettings={() => setShowSettingsDialog(true)}
+        />
+      </div>
 
-      <div className="flex-1 flex flex-col">
+      <div className={`${isMobileChatOpen && selectedChat ? 'block' : 'hidden md:block'} flex-1 flex flex-col`}>
         {selectedChat ? (
-          <ChatWindow
-            user={user}
-            chat={selectedChat}
-            messages={messages}
-            onMessagesUpdate={() => loadMessages(selectedChat.id)}
-            onShowMembers={() => loadGroupMembers(selectedChat.id)}
-            onShowGroupSettings={() => setShowGroupSettingsDialog(true)}
-          />
+          <div className="flex flex-col h-screen">
+            <div className="md:hidden p-2 border-b border-purple-500/20 glass">
+              <button
+                onClick={() => setIsMobileChatOpen(false)}
+                className="flex items-center gap-2 text-white hover:text-purple-300"
+              >
+                <Icon name="ArrowLeft" size={20} />
+                <span>Назад</span>
+              </button>
+            </div>
+            <ChatWindow
+              user={user}
+              chat={selectedChat}
+              messages={messages}
+              onMessagesUpdate={() => loadMessages(selectedChat.id)}
+              onShowMembers={() => loadGroupMembers(selectedChat.id)}
+              onShowGroupSettings={() => setShowGroupSettingsDialog(true)}
+            />
+          </div>
         ) : (
           <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground">
             <div className="text-center">
