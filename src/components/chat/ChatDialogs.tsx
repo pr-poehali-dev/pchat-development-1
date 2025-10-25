@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const CHATS_URL = 'https://functions.poehali.dev/4d069476-3336-4644-9ef7-bb70d595e5ae';
 const PROFILE_URL = 'https://functions.poehali.dev/da9b0d09-13d2-409c-a27e-f8a49aef114e';
+const UPLOAD_URL = 'https://functions.poehali.dev/10ae2b90-4afe-4755-9a60-3bf95bb2d159';
 
 interface User {
   id: number;
@@ -81,6 +82,8 @@ export default function ChatDialogs({
   const [groupMembers, setGroupMembers] = useState('');
   const [profileNickname, setProfileNickname] = useState(user.nickname);
   const [hideOnlineStatus, setHideOnlineStatus] = useState(user.hide_online_status || false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
   const { toast } = useToast();
 
   const handleCreateChat = () => {
@@ -96,6 +99,97 @@ export default function ChatDialogs({
 
   const handleUpdateProfile = () => {
     onUpdateProfile(profileNickname, hideOnlineStatus);
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+          'X-User-Id': user.id.toString()
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetch(PROFILE_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': user.id.toString()
+          },
+          body: JSON.stringify({
+            action: 'update_avatar',
+            avatar_url: data.url
+          })
+        });
+
+        const updatedUser = { ...user, avatar_url: data.url };
+        onUserUpdate(updatedUser);
+        localStorage.setItem('pchat_user', JSON.stringify(updatedUser));
+        toast({ title: 'Аватар обновлен!' });
+      } else {
+        toast({ title: 'Ошибка загрузки', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка загрузки аватара', variant: 'destructive' });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChat) return;
+
+    setUploadingGroupAvatar(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: {
+          'X-User-Id': user.id.toString()
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetch(CHATS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': user.id.toString()
+          },
+          body: JSON.stringify({
+            action: 'update_group_avatar',
+            chat_id: selectedChat.id,
+            avatar_url: data.url
+          })
+        });
+
+        toast({ title: 'Аватар группы обновлен!' });
+        onClose('groupSettings');
+      } else {
+        toast({ title: 'Ошибка загрузки', description: data.error, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка загрузки аватара', variant: 'destructive' });
+    } finally {
+      setUploadingGroupAvatar(false);
+    }
   };
 
   const removeMember = async (memberId: number) => {
@@ -174,6 +268,32 @@ export default function ChatDialogs({
             <DialogTitle>Настройки профиля</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex flex-col items-center gap-3">
+              <Avatar className="w-24 h-24">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-2xl">
+                    {user.nickname[0].toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                />
+                <Button variant="outline" size="sm" className="cursor-pointer" asChild disabled={uploadingAvatar}>
+                  <span>
+                    {uploadingAvatar ? 'Загрузка...' : 'Изменить аватар'}
+                  </span>
+                </Button>
+              </label>
+            </div>
+
             <div>
               <Label>Отображаемое имя</Label>
               <Input
@@ -248,6 +368,34 @@ export default function ChatDialogs({
             <DialogTitle>Настройки группы</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedChat?.creator_id === user.id && (
+              <div className="flex flex-col items-center gap-3">
+                <Avatar className="w-24 h-24">
+                  {selectedChat.avatar_url ? (
+                    <img src={selectedChat.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <AvatarFallback className="bg-gradient-to-br from-purple-400 to-blue-400 text-2xl">
+                      <Icon name="Users" size={32} />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleGroupAvatarUpload}
+                    className="hidden"
+                    disabled={uploadingGroupAvatar}
+                  />
+                  <Button variant="outline" size="sm" className="cursor-pointer" asChild disabled={uploadingGroupAvatar}>
+                    <span>
+                      {uploadingGroupAvatar ? 'Загрузка...' : 'Изменить аватар группы'}
+                    </span>
+                  </Button>
+                </label>
+              </div>
+            )}
+            
             <Button onClick={onLeaveGroup} variant="destructive" className="w-full">
               Покинуть группу
             </Button>
