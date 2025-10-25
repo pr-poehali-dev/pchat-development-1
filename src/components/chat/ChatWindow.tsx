@@ -61,6 +61,10 @@ export default function ChatWindow({
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [isCalling, setIsCalling] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const previousMessagesCount = useRef(messages.length);
   const { toast } = useToast();
@@ -318,6 +322,51 @@ export default function ChatWindow({
     }
   };
 
+  const startCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      setLocalStream(stream);
+      setIsCalling(true);
+      
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+      
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      pc.ontrack = (event) => {
+        setRemoteStream(event.streams[0]);
+      };
+      
+      peerConnection.current = pc;
+      toast({ title: 'Звонок начат!' });
+    } catch (error) {
+      toast({ title: 'Ошибка доступа к микрофону', variant: 'destructive' });
+    }
+  };
+
+  const endCall = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    setRemoteStream(null);
+    setIsCalling(false);
+    toast({ title: 'Звонок завершён' });
+  };
+
+  useEffect(() => {
+    if (remoteStream) {
+      const audio = new Audio();
+      audio.srcObject = remoteStream;
+      audio.play();
+    }
+  }, [remoteStream]);
+
   return (
     <>
       <div className="p-4 border-b border-purple-500/20 flex items-center justify-between glass">
@@ -348,11 +397,20 @@ export default function ChatWindow({
           </div>
         </div>
 
-        {chat.is_group && (
-          <Button variant="ghost" size="icon" onClick={onShowGroupSettings}>
-            <Icon name="Settings" size={20} />
+        <div className="flex gap-2">
+          <Button 
+            variant={isCalling ? "destructive" : "ghost"} 
+            size="icon" 
+            onClick={isCalling ? endCall : startCall}
+          >
+            <Icon name={isCalling ? "PhoneOff" : "Phone"} size={20} />
           </Button>
-        )}
+          {chat.is_group && (
+            <Button variant="ghost" size="icon" onClick={onShowGroupSettings}>
+              <Icon name="Settings" size={20} />
+            </Button>
+          )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1 p-4">
@@ -395,6 +453,13 @@ export default function ChatWindow({
                           <Icon name="Mic" size={16} />
                           <audio controls src={msg.file_url} className="max-w-xs" />
                         </div>
+                      ) : msg.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                        <img 
+                          src={msg.file_url} 
+                          alt={msg.content} 
+                          className="max-w-xs rounded-lg cursor-pointer"
+                          onClick={() => window.open(msg.file_url, '_blank')}
+                        />
                       ) : (
                         <a
                           href={msg.file_url}
