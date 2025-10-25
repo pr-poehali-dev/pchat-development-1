@@ -62,6 +62,7 @@ export default function ChatWindow({
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [previewFile, setPreviewFile] = useState<{ file: File; url: string } | null>(null);
+  const [imageCaption, setImageCaption] = useState('');
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const previousMessagesCount = useRef(messages.length);
   const { toast } = useToast();
@@ -164,7 +165,7 @@ export default function ChatWindow({
     e.target.value = '';
   };
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, caption?: string) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -189,7 +190,7 @@ export default function ChatWindow({
           body: JSON.stringify({
             action: 'send_message',
             chat_id: chat.id,
-            content: file.name,
+            content: caption || file.name,
             file_url: data.url
           })
         });
@@ -206,15 +207,17 @@ export default function ChatWindow({
 
   const sendPreviewedImage = async () => {
     if (!previewFile) return;
-    await uploadFile(previewFile.file);
+    await uploadFile(previewFile.file, imageCaption.trim() || undefined);
     URL.revokeObjectURL(previewFile.url);
     setPreviewFile(null);
+    setImageCaption('');
   };
 
   const cancelPreview = () => {
     if (previewFile) {
       URL.revokeObjectURL(previewFile.url);
       setPreviewFile(null);
+      setImageCaption('');
     }
   };
 
@@ -427,12 +430,17 @@ export default function ChatWindow({
                           <audio controls src={msg.file_url} className="max-w-xs" />
                         </div>
                       ) : msg.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                        <img 
-                          src={msg.file_url} 
-                          alt={msg.content} 
-                          className="max-w-xs rounded-lg cursor-pointer"
-                          onClick={() => window.open(msg.file_url, '_blank')}
-                        />
+                        <div className="space-y-1">
+                          <img 
+                            src={msg.file_url} 
+                            alt={msg.content} 
+                            className="max-w-xs rounded-lg cursor-pointer"
+                            onClick={() => window.open(msg.file_url, '_blank')}
+                          />
+                          {msg.content && msg.content !== msg.file_url.split('/').pop() && (
+                            <p className="text-sm">{msg.content}</p>
+                          )}
+                        </div>
                       ) : (
                         <a
                           href={msg.file_url}
@@ -503,6 +511,13 @@ export default function ChatWindow({
               <Icon name="X" size={16} />
             </Button>
           </div>
+          <Input
+            value={imageCaption}
+            onChange={(e) => setImageCaption(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && sendPreviewedImage()}
+            placeholder="Добавить подпись..."
+            className="glass border-purple-500/30"
+          />
           <div className="flex gap-2">
             <Button 
               onClick={sendPreviewedImage} 
