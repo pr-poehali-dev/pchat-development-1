@@ -35,6 +35,7 @@ interface Message {
   is_read: boolean;
   created_at: string;
   file_url?: string;
+  is_edited?: boolean;
 }
 
 interface ChatWindowProps {
@@ -58,6 +59,8 @@ export default function ChatWindow({
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState('');
   const { toast } = useToast();
 
   const sendMessage = async () => {
@@ -201,6 +204,58 @@ export default function ChatWindow({
     }
   };
 
+  const editMessage = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditingContent(msg.content);
+  };
+
+  const saveEdit = async () => {
+    if (!editingMessageId || !editingContent.trim()) return;
+
+    try {
+      await fetch(CHATS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString()
+        },
+        body: JSON.stringify({
+          action: 'edit_message',
+          message_id: editingMessageId,
+          content: editingContent
+        })
+      });
+
+      setEditingMessageId(null);
+      setEditingContent('');
+      onMessagesUpdate();
+    } catch (error) {
+      toast({ title: 'Ошибка редактирования', variant: 'destructive' });
+    }
+  };
+
+  const deleteMessage = async (messageId: number) => {
+    if (!confirm('Удалить сообщение?')) return;
+
+    try {
+      await fetch(CHATS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString()
+        },
+        body: JSON.stringify({
+          action: 'delete_message',
+          message_id: messageId
+        })
+      });
+
+      onMessagesUpdate();
+    } catch (error) {
+      toast({ title: 'Ошибка удаления', variant: 'destructive' });
+    }
+  };
+
   return (
     <>
       <div className="p-4 border-b border-purple-500/20 flex items-center justify-between glass">
@@ -257,34 +312,74 @@ export default function ChatWindow({
                     {msg.sender_name}
                   </p>
                 )}
-                {msg.file_url ? (
-                  msg.content === 'Голосовое сообщение' ? (
-                    <div className="flex items-center gap-2">
-                      <Icon name="Mic" size={16} />
-                      <audio controls src={msg.file_url} className="max-w-xs" />
+                {editingMessageId === msg.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                      className="glass border-purple-500/30"
+                      onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveEdit}>Сохранить</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingMessageId(null)}>Отмена</Button>
                     </div>
-                  ) : (
-                    <a
-                      href={msg.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 hover:underline"
-                    >
-                      <Icon name="File" size={16} />
-                      {msg.content}
-                    </a>
-                  )
+                  </div>
                 ) : (
-                  <p>{msg.content}</p>
+                  <>
+                    {msg.file_url ? (
+                      msg.content === 'Голосовое сообщение' ? (
+                        <div className="flex items-center gap-2">
+                          <Icon name="Mic" size={16} />
+                          <audio controls src={msg.file_url} className="max-w-xs" />
+                        </div>
+                      ) : (
+                        <a
+                          href={msg.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 hover:underline"
+                        >
+                          <Icon name="File" size={16} />
+                          {msg.content}
+                        </a>
+                      )
+                    ) : (
+                      <p>{msg.content}</p>
+                    )}
+                  </>
                 )}
-                <p className={`text-xs mt-1 ${
-                  msg.sender_id === user.id ? 'text-purple-100' : 'text-muted-foreground'
-                }`}>
-                  {new Date(msg.created_at).toLocaleTimeString('ru', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className={`text-xs ${
+                    msg.sender_id === user.id ? 'text-purple-100' : 'text-muted-foreground'
+                  }`}>
+                    {new Date(msg.created_at).toLocaleTimeString('ru', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    {msg.is_edited && ' (изменено)'}
+                  </p>
+                  {msg.sender_id === user.id && !msg.file_url && editingMessageId !== msg.id && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => editMessage(msg)}
+                      >
+                        <Icon name="Pencil" size={12} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => deleteMessage(msg.id)}
+                      >
+                        <Icon name="Trash2" size={12} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

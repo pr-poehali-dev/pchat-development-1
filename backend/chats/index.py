@@ -44,7 +44,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         if chat_id:
             cur.execute("""
-                SELECT m.id, m.content, m.file_url, m.is_read, m.created_at,
+                SELECT m.id, m.content, m.file_url, m.is_read, m.created_at, m.is_edited,
                        m.sender_id, u.nickname as sender_name
                 FROM messages m
                 JOIN users u ON m.sender_id = u.id
@@ -284,6 +284,60 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps(dict(message), default=str)
             }
+        
+        elif action == 'edit_message':
+            message_id = body.get('message_id')
+            new_content = body.get('content')
+            
+            cur.execute("""
+                UPDATE messages 
+                SET content = %s, is_edited = true 
+                WHERE id = %s AND sender_id = %s
+                RETURNING id
+            """, (new_content, message_id, user_id))
+            
+            result = cur.fetchone()
+            conn.commit()
+            conn.close()
+            
+            if result:
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': True})
+                }
+            else:
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Cannot edit this message'})
+                }
+        
+        elif action == 'delete_message':
+            message_id = body.get('message_id')
+            
+            cur.execute("""
+                DELETE FROM messages 
+                WHERE id = %s AND sender_id = %s
+                RETURNING id
+            """, (message_id, user_id))
+            
+            result = cur.fetchone()
+            conn.commit()
+            conn.close()
+            
+            if result:
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': True})
+                }
+            else:
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Cannot delete this message'})
+                }
     
     conn.close()
     return {
